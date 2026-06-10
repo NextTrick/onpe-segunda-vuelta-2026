@@ -1,0 +1,48 @@
+name: Actualizar dashboard ONPE
+
+on:
+  workflow_dispatch:        # ejecución manual
+  schedule:
+    - cron: "*/10 * * * *"  # cada 10 minutos
+
+permissions:
+  contents: write           # para commitear el index.html actualizado
+
+concurrency:
+  group: update-dashboard
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+
+      - name: Instalar Chrome para Playwright
+        run: npx playwright install --with-deps chrome
+
+      - name: Instalar xvfb (display virtual para Chrome headed)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Scrapear ONPE y regenerar dashboard
+        run: xvfb-run -a node dashboard.mjs --deploy 5
+
+      - name: Commitear si hubo cambios
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --quiet --cached; then
+            echo "Sin cambios en los datos."
+          else
+            git commit -m "auto: snapshot $(date -u +'%Y-%m-%d %H:%M UTC') [skip ci]"
+            git push
+          fi

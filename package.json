@@ -1,0 +1,9 @@
+{
+  "name": "onpe-dashboard-2026",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dashboard proyección segunda vuelta presidencial Perú 2026 (data ONPE)",
+  "scripts": { "deploy": "node dashboard.mjs --deploy 5" },
+  "dependencies": { "playwright": "1.60.0" }
+}
