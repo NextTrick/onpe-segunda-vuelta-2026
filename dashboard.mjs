@@ -52,9 +52,28 @@ const clamp01 = (x) => Math.min(1, Math.max(0, x));
 async function openBrowser() {
   const browser = await chromium.launch({ channel: 'chrome', headless: false });
   const page = await browser.newPage();
-  await page.goto(`${ORIGIN}/main/resumen`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1500);
+  await pasarChallenge(page);
   return { browser, page };
+}
+
+// El anti-bot de ONPE es INTERMITENTE: a veces sirve un challenge JS antes de
+// dejar pasar. En vez de esperar a ciegas, recargamos hasta que un fetch de
+// prueba devuelva JSON real (esperas crecientes). Tolera runners lentos y el reto.
+async function pasarChallenge(page) {
+  const test = `${BASE}/resumen-general/totales?idEleccion=${ID}&tipoFiltro=eleccion`;
+  for (let intento = 0; intento < 6; intento++) {
+    await page.goto(`${ORIGIN}/main/resumen`, { waitUntil: 'networkidle' }).catch(() => {});
+    await page.waitForTimeout(2500 + intento * 1500); // 2.5s, 4s, 5.5s, ...
+    const ok = await page.evaluate(async (u) => {
+      try {
+        const r = await fetch(u, { cache: 'no-store' });
+        const t = await r.text();
+        return r.status === 200 && t.trim().startsWith('{');
+      } catch { return false; }
+    }, test);
+    if (ok) return;
+  }
+  throw new Error('No se pudo superar el challenge anti-bot de ONPE tras 6 intentos');
 }
 
 // Ejecuta los fetch desde el contexto de la página (mismo origen → JSON).
