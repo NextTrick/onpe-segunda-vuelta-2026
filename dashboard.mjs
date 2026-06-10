@@ -61,7 +61,7 @@ async function openBrowser() {
 // prueba devuelva JSON real (esperas crecientes). Tolera runners lentos y el reto.
 async function pasarChallenge(page) {
   const test = `${BASE}/resumen-general/totales?idEleccion=${ID}&tipoFiltro=eleccion`;
-  for (let intento = 0; intento < 6; intento++) {
+  for (let intento = 0; intento < 10; intento++) {
     await page.goto(`${ORIGIN}/main/resumen`, { waitUntil: 'networkidle' }).catch(() => {});
     await page.waitForTimeout(2500 + intento * 1500); // 2.5s, 4s, 5.5s, ...
     const ok = await page.evaluate(async (u) => {
@@ -73,7 +73,9 @@ async function pasarChallenge(page) {
     }, test);
     if (ok) return;
   }
-  throw new Error('No se pudo superar el challenge anti-bot de ONPE tras 6 intentos');
+  const err = new Error('No se pudo superar el challenge anti-bot de ONPE tras 10 intentos');
+  err.antibot = true; // marca para que el modo deploy lo trate como skip, no como falla
+  throw err;
 }
 
 // Ejecuta los fetch desde el contexto de la página (mismo origen → JSON).
@@ -334,7 +336,12 @@ if (deployIdx !== -1) {
   const arg = process.argv[deployIdx + 1];
   const mins = arg && !arg.startsWith('--') ? Number(arg) : 5;
   runDeploy(Number.isFinite(mins) && mins > 0 ? mins : 5)
-    .catch((e) => { console.error('ERROR:', e.message); process.exit(1); });
+    .catch((e) => {
+      // Bloqueo del anti-bot = skip silencioso (no falla la corrida de CI, no manda email).
+      // Cualquier otro error sí falla, para no enmascarar bugs reales.
+      if (e.antibot) { console.warn('SKIP:', e.message, '— se conserva el último snapshot.'); process.exit(0); }
+      console.error('ERROR:', e.message); process.exit(1);
+    });
 } else if (watchIdx !== -1) {
   const arg = process.argv[watchIdx + 1];
   const mins = arg && !arg.startsWith('--') ? Number(arg) : 5;
