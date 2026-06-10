@@ -140,7 +140,8 @@ function montecarlo(d) {
   };
 }
 
-const fecha = (ms) => new Date(ms).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' });
+// timeZone explícito: el Action corre en UTC; sin esto las horas saldrían +5h.
+const fecha = (ms) => new Date(ms).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima' });
 
 function html(d, mc, refreshSeconds, generadoMs) {
   const liderActual = d.margenActual > 0 ? 'Sánchez' : 'Keiko';
@@ -289,7 +290,7 @@ async function runWatch(minutos) {
 }
 
 function logResumen(d, mc, conHora = false) {
-  const h = conHora ? `[${new Date().toLocaleTimeString('es-PE')}] ` : '';
+  const h = conHora ? `[${new Date().toLocaleTimeString('es-PE', { timeZone: 'America/Lima' })}] ` : '';
   console.log(`${h}Keiko ${(mc.probK * 100).toFixed(1)}% | Sánchez ${(mc.probS * 100).toFixed(1)}%  ·  ` +
     `dif actual ${fmt(Math.abs(d.margenActual))} · proy ${fmt(Math.abs(mc.margenProyMedio))} · actas ${d.t.actasContabilizadas.toFixed(2)}%`);
 }
