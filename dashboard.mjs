@@ -50,7 +50,13 @@ const clamp01 = (x) => Math.min(1, Math.max(0, x));
 
 // Abre Chrome una sola vez y supera el challenge anti-bot.
 async function openBrowser() {
-  const browser = await chromium.launch({ channel: 'chrome', headless: false });
+  // ONPE bloquea Chrome headless (viejo y nuevo), así que va headed obligatoriamente.
+  // window-position fuera de pantalla: en uso local (launchd) no roba el foco visual.
+  const browser = await chromium.launch({
+    channel: 'chrome',
+    headless: false,
+    args: ['--window-position=-3000,-3000', '--window-size=1200,900'],
+  });
   const page = await browser.newPage();
   await pasarChallenge(page);
   return { browser, page };
@@ -117,7 +123,12 @@ function normalize(raw) {
     const validos = (s.totalVotosValidos || 0) + (k.totalVotosValidos || 0);
     return {
       nombre,
-      pctK: (k.porcentajeVotosValidos || 0) / 100,
+      sanchezVotos: s.totalVotosValidos || 0,
+      keikoVotos: k.totalVotosValidos || 0,
+      pctSanchez: s.porcentajeVotosValidos || 0,
+      pctKeiko: k.porcentajeVotosValidos || 0,
+      pctK: (k.porcentajeVotosValidos || 0) / 100, // usado por la simulación
+      instaladas: inst,
       pendientes: mesas.mesasPendientes || 0,
       vpm: inst > 0 ? validos / inst : 0,
     };
@@ -175,6 +186,18 @@ function html(d, mc, refreshSeconds, generadoMs) {
   const refreshTag = refreshSeconds
     ? `<meta http-equiv="refresh" content="${refreshSeconds}">`
     : '';
+  const ambitoCards = d.ambitos.map((a) => {
+    const ganaS = a.sanchezVotos >= a.keikoVotos;
+    return `<div class="card">
+      <div class="label">${a.nombre === 'PERÚ' ? '🇵🇪 Perú (territorio nacional)' : '🌎 Extranjero'}</div>
+      <div class="amb-row"><span style="color:var(--s)">Sánchez</span>
+        <b style="color:var(--s)">${a.pctSanchez.toFixed(2)}%</b><span class="party">${fmt(a.sanchezVotos)} votos</span></div>
+      <div class="amb-row"><span style="color:var(--k)">Keiko</span>
+        <b style="color:var(--k)">${a.pctKeiko.toFixed(2)}%</b><span class="party">${fmt(a.keikoVotos)} votos</span></div>
+      <div class="party" style="margin-top:10px">📋 ${fmt(a.instaladas)} actas contabilizadas · ${a.pendientes} pendientes ·
+        gana ${ganaS ? 'Sánchez' : 'Keiko'}</div>
+    </div>`;
+  }).join('');
   const liveBadge = refreshSeconds
     ? `<span style="color:#22c55e">● EN VIVO</span> · refresco cada ${Math.round(refreshSeconds / 60)} min · `
     : '';
@@ -199,6 +222,9 @@ ${refreshTag}
   .prob{font-size:44px;font-weight:800;line-height:1}
   .bar{height:14px;border-radius:7px;background:#334155;overflow:hidden;margin-top:14px;display:flex}
   .bar>i{display:block;height:100%}
+  .amb-row{display:flex;align-items:baseline;gap:10px;margin-top:8px;font-size:14px}
+  .amb-row b{font-size:18px;min-width:64px}
+  .h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:24px 0 -4px}
   .winner{margin-top:20px;padding:16px 20px;border-radius:14px;background:linear-gradient(90deg,#1e293b,#334155);font-size:18px}
   .winner b{font-size:22px}
   .note{margin-top:22px;color:var(--mut);font-size:12.5px;line-height:1.6;border-top:1px solid #334155;padding-top:16px}
@@ -238,6 +264,9 @@ ${refreshTag}
     <div class="card"><div class="label">Votos Keiko</div><div class="big" style="font-size:24px">${fmt(d.votosK)}</div></div>
     <div class="card"><div class="label">Actas en disputa (JEE)</div><div class="big" style="font-size:24px">${fmt(d.t.enviadasJee)}</div><div class="party">${fmt(d.t.pendientesJee)} mesas sin procesar</div></div>
   </div>
+
+  <div class="h2">Desglose por ámbito (donde está la clave del resultado)</div>
+  <div class="grid cols-2">${ambitoCards}</div>
 
   <div class="winner">Favorito según el modelo: <b style="color:${pctK >= pctS ? 'var(--k)' : 'var(--s)'}">${favorito}</b>
     — pero con probabilidad cercana al 50%: <b>EMPATE TÉCNICO</b>.</div>
